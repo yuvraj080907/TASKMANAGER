@@ -48,8 +48,8 @@ const Dashboard = () => {
 
   // Socket.io Real-time Event Listeners & Room Subscription
   useEffect(() => {
-    if (user?._id) {
-      connectSocket(user._id);
+    if (user?.id) {
+      connectSocket(user.id);
 
       const onConnect = () => setSocketConnected(true);
       const onDisconnect = () => setSocketConnected(false);
@@ -62,7 +62,7 @@ const Dashboard = () => {
         console.log('⚡ Real-time Event: task_created', newTask);
         setAllTasks((prev) => {
           // Avoid duplicate prepend if created locally
-          if (prev.some((t) => t._id === newTask._id)) return prev;
+          if (prev.some((t) => t.id === newTask.id)) return prev;
           return [newTask, ...prev];
         });
       });
@@ -70,13 +70,13 @@ const Dashboard = () => {
       socket.on('task_updated', (updatedTask) => {
         console.log('⚡ Real-time Event: task_updated', updatedTask);
         setAllTasks((prev) =>
-          prev.map((t) => (t._id === updatedTask._id ? updatedTask : t))
+          prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
         );
       });
 
       socket.on('task_deleted', ({ taskId }) => {
         console.log('⚡ Real-time Event: task_deleted', taskId);
-        setAllTasks((prev) => prev.filter((t) => t._id !== taskId));
+        setAllTasks((prev) => prev.filter((t) => t.id !== taskId));
       });
 
       return () => {
@@ -88,17 +88,17 @@ const Dashboard = () => {
         disconnectSocket();
       };
     }
-  }, [user?._id]);
+  }, [user?.id]);
 
   // Handle Task Save (Create or Edit)
   const handleSaveTask = async (formData) => {
     try {
       setIsSubmitting(true);
       if (editingTask) {
-        const response = await api.put(`/tasks/${editingTask._id}`, formData);
+        const response = await api.put(`/tasks/${editingTask.id}`, formData);
         if (response.data.success) {
           setAllTasks((prev) =>
-            prev.map((t) => (t._id === editingTask._id ? response.data.task : t))
+            prev.map((t) => (t.id === editingTask.id ? response.data.task : t))
           );
         }
       } else {
@@ -122,7 +122,7 @@ const Dashboard = () => {
     try {
       setAllTasks((prevTasks) =>
         prevTasks.map((task) =>
-          task._id === taskId ? { ...task, status: newStatus } : task
+          task.id === taskId ? { ...task, status: newStatus } : task
         )
       );
       await api.put(`/tasks/${taskId}`, { status: newStatus });
@@ -136,7 +136,7 @@ const Dashboard = () => {
   const handleDeleteTask = async (taskId) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
       try {
-        setAllTasks((prev) => prev.filter((t) => t._id !== taskId));
+        setAllTasks((prev) => prev.filter((t) => t.id !== taskId));
         await api.delete(`/tasks/${taskId}`);
       } catch (err) {
         console.error('Failed to delete task:', err);
@@ -263,7 +263,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredTasks.map((task) => (
               <TaskCard
-                key={task._id}
+                key={task.id}
                 task={task}
                 onStatusChange={handleStatusChange}
                 onEdit={handleOpenEditModal}

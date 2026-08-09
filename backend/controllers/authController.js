@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const prisma = require('../config/prisma');
 const generateToken = require('../utils/generateToken');
 
 // @desc    Register new user
@@ -17,7 +17,7 @@ const registerUser = async (req, res) => {
     }
 
     // Check if user already exists
-    const userExists = await User.findOne({ email });
+    const userExists = await prisma.user.findUnique({ where: { email } });
     if (userExists) {
       return res.status(400).json({
         success: false,
@@ -30,20 +30,22 @@ const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
     });
 
     if (user) {
-      const token = generateToken(user._id);
+      const token = generateToken(user.id);
       return res.status(201).json({
         success: true,
         message: 'User registered successfully',
         token,
         user: {
-          _id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           createdAt: user.createdAt,
@@ -79,7 +81,10 @@ const loginUser = async (req, res) => {
     }
 
     // Check for user email & explicitly select password field
-    const user = await User.findOne({ email }).select('+password');
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, password: true, createdAt: true },
+    });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -96,14 +101,14 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     return res.json({
       success: true,
       message: 'Login successful',
       token,
       user: {
-        _id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         createdAt: user.createdAt,
@@ -123,7 +128,10 @@ const loginUser = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, name: true, email: true, createdAt: true },
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -132,12 +140,7 @@ const getMe = async (req, res) => {
     }
     return res.json({
       success: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-      },
+      user,
     });
   } catch (error) {
     console.error('GetMe Error:', error);

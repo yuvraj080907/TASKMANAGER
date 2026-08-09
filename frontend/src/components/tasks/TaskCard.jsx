@@ -74,9 +74,9 @@ const TaskCard = ({ task, onStatusChange, onEdit, onDelete }) => {
         <div className="flex items-center gap-2">
           {/* Inline Status Toggle Dropdown */}
           <select
-            id={`status-select-${task._id}`}
+            id={`status-select-${task.id}`}
             value={task.status}
-            onChange={(e) => onStatusChange(task._id, e.target.value)}
+            onChange={(e) => onStatusChange(task.id, e.target.value)}
             className="bg-slate-900 text-slate-300 border border-slate-800 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer font-medium hover:bg-slate-800 transition-colors"
             title="Inline Status Change"
           >
@@ -87,7 +87,7 @@ const TaskCard = ({ task, onStatusChange, onEdit, onDelete }) => {
 
           {/* Edit Button */}
           <button
-            id={`edit-task-${task._id}`}
+            id={`edit-task-${task.id}`}
             onClick={() => onEdit(task)}
             className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
             title="Edit Task"
@@ -97,8 +97,8 @@ const TaskCard = ({ task, onStatusChange, onEdit, onDelete }) => {
 
           {/* Delete Button */}
           <button
-            id={`delete-task-${task._id}`}
-            onClick={() => onDelete(task._id)}
+            id={`delete-task-${task.id}`}
+            onClick={() => onDelete(task.id)}
             className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
             title="Delete Task"
           >

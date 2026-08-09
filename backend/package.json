@@ -1,19 +1,23 @@
 {
   "name": "taskmanager-backend",
   "version": "1.0.0",
-  "description": "Task Management Application REST API with Node.js, Express, MongoDB, and JWT",
+  "description": "Task Management Application REST API with Node.js, Express, Supabase (Postgres), and JWT",
   "main": "server.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push"
   },
   "keywords": [
     "express",
-    "mongodb",
-    "mongoose",
+    "supabase",
+    "postgres",
+    "prisma",
     "jwt",
     "task-manager",
     "socket.io"
@@ -21,16 +25,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "mongodb-memory-server": "^11.2.0",
-    "mongoose": "^8.3.1",
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "prisma": "^5.22.0"
   }
 }

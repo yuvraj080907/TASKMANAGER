@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const prisma = require('../config/prisma');
 
 const protect = async (req, res, next) => {
   let token;
@@ -19,7 +19,10 @@ const protect = async (req, res, next) => {
       );
 
       // Fetch user details excluding password
-      req.user = await User.findById(decoded.id).select('-password');
+      req.user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { id: true, name: true, email: true },
+      });
 
       if (!req.user) {
         return res.status(401).json({

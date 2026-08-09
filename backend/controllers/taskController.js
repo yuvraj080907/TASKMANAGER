@@ -1,4 +1,4 @@
-const Task = require('../models/Task');
+const prisma = require('../config/prisma');
 
 // @desc    Get all tasks for the logged-in user (with optional status filter)
 // @route   GET /api/tasks
@@ -6,22 +6,25 @@ const Task = require('../models/Task');
 const getTasks = async (req, res) => {
   try {
     // Filter strictly by the authenticated user's ID
-    const query = { userId: req.user._id };
+    const where = { userId: req.user.id };
 
     // Optional status filter from query params (?status=Pending|In Progress|Completed)
     if (req.query.status) {
-      query.status = req.query.status;
+      where.status = req.query.status;
     }
 
     // Optional search term filter from query params (?search=abc)
     if (req.query.search) {
-      query.$or = [
-        { title: { $regex: req.query.search, $options: 'i' } },
-        { description: { $regex: req.query.search, $options: 'i' } },
+      where.OR = [
+        { title: { contains: req.query.search, mode: 'insensitive' } },
+        { description: { contains: req.query.search, mode: 'insensitive' } },
       ];
     }
 
-    const tasks = await Task.find(query).sort({ dueDate: 1, createdAt: -1 });
+    const tasks = await prisma.task.findMany({
+      where,
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    });
 
     return res.json({
       success: true,
@@ -43,9 +46,8 @@ const getTasks = async (req, res) => {
 const getTaskById = async (req, res) => {
   try {
     // Strictly filter by task ID and user's ID
-    const task = await Task.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
+    const task = await prisma.task.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!task) {
@@ -61,12 +63,6 @@ const getTaskById = async (req, res) => {
     });
   } catch (error) {
     console.error('Get Task By ID Error:', error);
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found - Invalid task ID format',
-      });
-    }
     return res.status(500).json({
       success: false,
       message: error.message || 'Server error fetching task',
@@ -89,18 +85,20 @@ const createTask = async (req, res) => {
     }
 
     // Create task associated strictly with authenticated user's ID
-    const task = await Task.create({
-      title,
-      description: description || '',
-      status: status || 'Pending',
-      dueDate,
-      userId: req.user._id,
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description: description || '',
+        status: status || 'Pending',
+        dueDate: new Date(dueDate),
+        userId: req.user.id,
+      },
     });
 
     // Broadcast real-time Socket.io event to user room
     const io = req.app.get('io');
     if (io) {
-      io.to(req.user._id.toString()).emit('task_created', task);
+      io.to(req.user.id.toString()).emit('task_created', task);
     }
 
     return res.status(201).json({
@@ -110,13 +108,6 @@ const createTask = async (req, res) => {
     });
   } catch (error) {
     console.error('Create Task Error:', error);
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((val) => val.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', '),
-      });
-    }
     return res.status(500).json({
       success: false,
       message: error.message || 'Server error creating task',
@@ -132,12 +123,11 @@ const updateTask = async (req, res) => {
     const { title, description, status, dueDate } = req.body;
 
     // Verify task exists and is owned by the user
-    let task = await Task.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
+    const existing = await prisma.task.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
     });
 
-    if (!task) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
         message: 'Task not found or access unauthorized',
@@ -149,19 +139,17 @@ const updateTask = async (req, res) => {
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
-    if (dueDate !== undefined) updateData.dueDate = dueDate;
+    if (dueDate !== undefined) updateData.dueDate = new Date(dueDate);
 
-    // Perform update restricted to user's task
-    task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
+    const task = await prisma.task.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
 
     // Broadcast real-time Socket.io event to user room
     const io = req.app.get('io');
     if (io) {
-      io.to(req.user._id.toString()).emit('task_updated', task);
+      io.to(req.user.id.toString()).emit('task_updated', task);
     }
 
     return res.json({
@@ -171,19 +159,6 @@ const updateTask = async (req, res) => {
     });
   } catch (error) {
     console.error('Update Task Error:', error);
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found - Invalid task ID format',
-      });
-    }
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map((val) => val.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', '),
-      });
-    }
     return res.status(500).json({
       success: false,
       message: error.message || 'Server error updating task',
@@ -196,22 +171,26 @@ const updateTask = async (req, res) => {
 // @access  Private
 const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user._id,
+    // Verify task exists and is owned by the user
+    const existing = await prisma.task.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
     });
 
-    if (!task) {
+    if (!existing) {
       return res.status(404).json({
         success: false,
         message: 'Task not found or access unauthorized',
       });
     }
 
+    await prisma.task.delete({
+      where: { id: existing.id },
+    });
+
     // Broadcast real-time Socket.io event to user room
     const io = req.app.get('io');
     if (io) {
-      io.to(req.user._id.toString()).emit('task_deleted', { taskId: req.params.id });
+      io.to(req.user.id.toString()).emit('task_deleted', { taskId: req.params.id });
     }
 
     return res.json({
@@ -221,12 +200,6 @@ const deleteTask = async (req, res) => {
     });
   } catch (error) {
     console.error('Delete Task Error:', error);
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found - Invalid task ID format',
-      });
-    }
     return res.status(500).json({
       success: false,
       message: error.message || 'Server error deleting task',
